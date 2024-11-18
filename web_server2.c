@@ -5,47 +5,68 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include "http_message.h"
+#include "request.h"
+// based on bruce's python implementation**
 
-#define PORT 80       // Port to listen on
+#define HOST "127.0.0.1" // Localhost
+#define PORT 80          // Port to listen on
+#define BUFFER_SIZE 1024 // Buffer size for receiving data
 #define LISTEN_BACKLOG 5
 
 
-//input ptr freed by this function
-void handle_connection(int* sock_fd_ptr)
+// input ptr freed by this function
+void handle_connection(int *sock_fd_ptr)
 {
   int sock_fd = *sock_fd_ptr;
   free(sock_fd_ptr);
 
   printf("Handling connection on %d\n", sock_fd);
 
-  char buffer[1024];
   while (1)
   {
-    printf("Handling connection on %d\n", sock_fd);
-    http_client_message_t *http_msg;
-    http_read_result_t result;
-    read_http_client_message(sock_fd, &http_msg, &result);
-    if (result == BAD_REQUEST)
-    {
-      printf("Bad request\n");
-      close(sock_fd);
-      return;
-    }
-    else if (result == CLOSED_CONNECTION)
-    {
-      printf("Closed connection\n");
-      close(sock_fd);
-      return;
-    }
-    respond_to_http_client_message(sock_fd, http_msg);
-    http_client_message_free(http_msg);
-  }
-  printf("Done with connection %d\n", sock_fd);
-  close(sock_fd);
-}
+    Request* req = request_read_fron_fd(sock_fd);
 
-int main(int argc, char* argv[])
+    if (req == NULL)
+    {
+      break;
+    }
+    request_print(req);
+    server_dispatch_request(req, sock_fd);
+    request_free(req);
+  }
+    printf("Done with connection %d\n", sock_fd);
+    close(sock_fd);
+  }
+
+int main(int argc, char *argv[])
 {
+  int port = PORT;
+  if (argc == 2 & !stremp(argv[1], "-")) {
+    printf("Reading ONE request from stdin\n");
+    Request* req = request_read_from_fd(0);
+
+    if (req = NULL) {
+      printf("Failed to read request\n");
+      exit(1);
+    }
+    request_print(req);
+    request_free(req);
+    exit(0);
+  }
+
+  if (argc == 2 && !strcmp(argv[1], "--handle")) {
+    printf ("Handling ONE connection from stdin\n");
+    int* sock_fd = malloc(sizeof(int));
+    *sock_fd = 0;
+    handleConnection(sock_fd);
+    printf ("Done handling connection\n");
+    exit(0);
+    }
+
+  if (argc > 1)
+  {
+    port = atoi(argv[1]);
+  }
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
   struct sockaddr_in socket_address;
@@ -58,7 +79,8 @@ int main(int argc, char* argv[])
 
   returnval = bind(socket_fd, (struct sockaddr *)&socket_address, sizeof(socket_address));
 
-  if (returnval < 0) {
+  if (returnval < 0)
+  {
     perror("bind");
     return 1;
   }

@@ -18,8 +18,9 @@ typedef enum
   MESSAGE
 } http_read_result_t;
 
-//responses: a message, bad request, clsoed connection
+//responses: a message, bad request, closed connection
 //allocates and returns a message
 void read_http_client_message(int client_sock, http_client_message_t** msg, http_read_result_t* result);
+void http_client_message_free(http_client_message_t* msg);
 
 #endif
